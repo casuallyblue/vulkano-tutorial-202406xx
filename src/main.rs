@@ -1,4 +1,5 @@
 #![feature(iterator_try_collect)]
+#![feature(trait_upcasting)]
 
 use anyhow::Result;
 

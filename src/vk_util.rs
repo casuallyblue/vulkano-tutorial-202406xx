@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
 use tracing::info;
@@ -238,22 +238,33 @@ pub struct WindowEventHandler<RenderHandler: RenderEventHandler> {
     // XXX: FenceSignalFuture is not Send + Sync, so Arc is cheating. However, there is no
     // `impl GpuFuture for Rc<FenceSignalFuture<...>>`, so we can't use Rc. We don't use threads yet
     // so this is safe anyway.
-    fences: Vec<Option<Arc<FenceFuture>>>,
+    fences: [Option<Arc<FenceFuture>>; 3],
     last_fence_idx: u32,
 }
 
 type SwapchainFuturePair = JoinFuture<Box<dyn GpuFuture>, SwapchainAcquireFuture>;
 type FenceFuture = FenceSignalFuture<PresentFuture<CommandBufferExecFuture<SwapchainFuturePair>>>;
+pub trait WaitableGpuFuture: GpuFuture + 'static {
+    fn wait(&self, timeout: Option<Duration>) -> Result<()>;
+}
+impl WaitableGpuFuture for SwapchainAcquireFuture {
+    fn wait(&self, timeout: Option<Duration>) -> Result<()> { Ok(self.wait(timeout)?) }
+}
+impl<T: GpuFuture + 'static> WaitableGpuFuture for FenceSignalFuture<T> {
+    fn wait(&self, timeout: Option<Duration>) -> Result<()> { Ok(self.wait(timeout)?) }
+}
+
 impl<RenderHandler: RenderEventHandler + 'static> WindowEventHandler<RenderHandler> {
     pub fn new(window: Arc<Window>,
                ctx: VulkanoContext,
                handler: RenderHandler) -> Self {
         let frames_in_flight = ctx.images().len();
+        assert!(frames_in_flight <= 3);
         Self {
             window, ctx,
             render_handler: handler,
             window_was_resized: false, should_recreate_swapchain: false,
-            fences: vec![None; frames_in_flight], last_fence_idx: 0,
+            fences: [None, None, None], last_fence_idx: 0,
         }
     }
 
@@ -284,7 +295,7 @@ impl<RenderHandler: RenderEventHandler + 'static> WindowEventHandler<RenderHandl
                 now.cleanup_finished();
                 now.boxed()
             }
-            Some(fence) => fence.boxed(),
+            Some(fence) => fence.boxed()
         };
 
         let command_buffers = self.render_handler.on_render()?;
