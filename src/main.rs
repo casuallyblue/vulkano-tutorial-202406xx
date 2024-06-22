@@ -1,19 +1,16 @@
-#![feature(iterator_try_collect)]
-#![feature(trait_upcasting)]
-
 use anyhow::Result;
 
-mod vk_util;
 mod vk_test;
+mod vk_util;
 
-fn main() -> Result<()>{
+fn main() -> Result<()> {
     // install global collector configured based on RUST_LOG env var
     tracing_subscriber::fmt()
         .event_format(
             tracing_subscriber::fmt::format()
                 .with_target(false)
                 .with_file(true)
-                .with_line_number(true)
+                .with_line_number(true),
         )
         .init();
 

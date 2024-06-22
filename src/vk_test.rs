@@ -1,23 +1,30 @@
-use std::sync::Arc;
 use anyhow::{Context, Result};
+use std::sync::Arc;
 use tracing::info;
 
 use vulkano::buffer::{Buffer, BufferContents, BufferCreateInfo, BufferUsage, Subbuffer};
-use vulkano::command_buffer::{AutoCommandBufferBuilder, CommandBufferUsage, CopyBufferInfo, CopyImageToBufferInfo, PrimaryAutoCommandBuffer, RenderPassBeginInfo, SubpassBeginInfo, SubpassContents, SubpassEndInfo};
+use vulkano::command_buffer::{
+    AutoCommandBufferBuilder, CommandBufferUsage, CopyBufferInfo, CopyImageToBufferInfo,
+    PrimaryAutoCommandBuffer, RenderPassBeginInfo, SubpassBeginInfo, SubpassContents,
+    SubpassEndInfo,
+};
 use vulkano::descriptor_set::{PersistentDescriptorSet, WriteDescriptorSet};
-use vulkano::image::{Image, ImageCreateInfo, ImageType, ImageUsage};
 use vulkano::image::view::ImageView;
+use vulkano::image::{Image, ImageCreateInfo, ImageType, ImageUsage};
 use vulkano::memory::allocator::{AllocationCreateInfo, MemoryTypeFilter};
-use vulkano::pipeline::{ComputePipeline, GraphicsPipeline, Pipeline, PipelineBindPoint, PipelineLayout, PipelineShaderStageCreateInfo};
 use vulkano::pipeline::compute::ComputePipelineCreateInfo;
 use vulkano::pipeline::graphics::color_blend::{ColorBlendAttachmentState, ColorBlendState};
-use vulkano::pipeline::graphics::GraphicsPipelineCreateInfo;
 use vulkano::pipeline::graphics::input_assembly::InputAssemblyState;
 use vulkano::pipeline::graphics::multisample::MultisampleState;
 use vulkano::pipeline::graphics::rasterization::RasterizationState;
 use vulkano::pipeline::graphics::vertex_input::{Vertex, VertexDefinition};
 use vulkano::pipeline::graphics::viewport::{Viewport, ViewportState};
+use vulkano::pipeline::graphics::GraphicsPipelineCreateInfo;
 use vulkano::pipeline::layout::PipelineDescriptorSetLayoutCreateInfo;
+use vulkano::pipeline::{
+    ComputePipeline, GraphicsPipeline, Pipeline, PipelineBindPoint, PipelineLayout,
+    PipelineShaderStageCreateInfo,
+};
 use vulkano::render_pass::{Framebuffer, FramebufferCreateInfo, Subpass};
 use vulkano::shader::ShaderModule;
 use vulkano::sync::GpuFuture;
@@ -40,7 +47,8 @@ pub fn s3_buffer_creation(ctx: vk_util::VulkanoContext) -> Result<()> {
             ..Default::default()
         },
         src_content,
-    ).context("failed to create source buffer")?;
+    )
+    .context("failed to create source buffer")?;
 
     let dest_content: Vec<i32> = (0..64).map(|_| 0).collect();
     let dest = Buffer::from_iter(
@@ -55,7 +63,8 @@ pub fn s3_buffer_creation(ctx: vk_util::VulkanoContext) -> Result<()> {
             ..Default::default()
         },
         dest_content,
-    ).context("failed to create destination buffer")?;
+    )
+    .context("failed to create destination buffer")?;
 
     let mut builder = AutoCommandBufferBuilder::primary(
         ctx.command_buffer_allocator(),
@@ -79,7 +88,7 @@ pub fn s3_buffer_creation(ctx: vk_util::VulkanoContext) -> Result<()> {
 }
 
 mod s4_compute_shader {
-    vulkano_shaders::shader!{
+    vulkano_shaders::shader! {
         ty: "compute",
         src: r"
             #version 460
@@ -113,22 +122,26 @@ pub fn s4_compute_operations(ctx: vk_util::VulkanoContext) -> Result<()> {
             ..Default::default()
         },
         data_iter,
-    ).context("failed to create buffer")?;
+    )
+    .context("failed to create buffer")?;
 
     // load shader and compute pipeline
     let shader = s4_compute_shader::load(ctx.device()).context("failed to create shader module")?;
-    let cs = shader.entry_point("main").context("did not find shader entry point")?;
+    let cs = shader
+        .entry_point("main")
+        .context("did not find shader entry point")?;
     let stage = PipelineShaderStageCreateInfo::new(cs);
     let layout = PipelineLayout::new(
         ctx.device(),
         PipelineDescriptorSetLayoutCreateInfo::from_stages([&stage])
-            .into_pipeline_layout_create_info(ctx.device())?
+            .into_pipeline_layout_create_info(ctx.device())?,
     )?;
     let compute_pipeline = ComputePipeline::new(
         ctx.device(),
         /* cache= */ None,
         ComputePipelineCreateInfo::stage_layout(stage, layout),
-    ).context("failed to create compute pipeline")?;
+    )
+    .context("failed to create compute pipeline")?;
 
     // load descriptor set
     let pipeline_layout = compute_pipeline.layout();
@@ -178,7 +191,7 @@ pub fn s4_compute_operations(ctx: vk_util::VulkanoContext) -> Result<()> {
 }
 
 mod s5_compute_shader {
-    vulkano_shaders::shader!{
+    vulkano_shaders::shader! {
         ty: "compute",
         src: r"
             #version 460
@@ -241,22 +254,26 @@ pub fn s5_image_creation(ctx: vk_util::VulkanoContext) -> Result<()> {
             ..Default::default()
         },
         (0..1024 * 1024 * 4).map(|_| 0u8),
-    ).context("failed to create buffer")?;
+    )
+    .context("failed to create buffer")?;
 
     // load shader and compute pipeline
     let shader = s5_compute_shader::load(ctx.device()).context("failed to create shader module")?;
-    let cs = shader.entry_point("main").context("did not find shader entry point")?;
+    let cs = shader
+        .entry_point("main")
+        .context("did not find shader entry point")?;
     let stage = PipelineShaderStageCreateInfo::new(cs);
     let pipeline_layout = PipelineLayout::new(
         ctx.device(),
         PipelineDescriptorSetLayoutCreateInfo::from_stages([&stage])
-            .into_pipeline_layout_create_info(ctx.device())?
+            .into_pipeline_layout_create_info(ctx.device())?,
     )?;
     let compute_pipeline = ComputePipeline::new(
         ctx.device(),
         /* cache= */ None,
         ComputePipelineCreateInfo::stage_layout(stage.clone(), pipeline_layout),
-    ).context("failed to create compute pipeline")?;
+    )
+    .context("failed to create compute pipeline")?;
     let pipeline_layout = compute_pipeline.layout();
 
     // load descriptor set
@@ -278,7 +295,8 @@ pub fn s5_image_creation(ctx: vk_util::VulkanoContext) -> Result<()> {
         ctx.queue().queue_family_index(),
         CommandBufferUsage::OneTimeSubmit,
     )?;
-    builder.bind_pipeline_compute(compute_pipeline.clone())?
+    builder
+        .bind_pipeline_compute(compute_pipeline.clone())?
         .bind_descriptor_sets(
             PipelineBindPoint::Compute,
             compute_pipeline.layout().clone(),
@@ -300,8 +318,7 @@ pub fn s5_image_creation(ctx: vk_util::VulkanoContext) -> Result<()> {
     let buffer_content = buf.read()?;
     std::fs::create_dir_all("output")?;
     let target_path = "output/s5_image.png";
-    let image = image::ImageBuffer::<image::Rgba<u8>, _>
-        ::from_raw(1024, 1024, &buffer_content[..])
+    let image = image::ImageBuffer::<image::Rgba<u8>, _>::from_raw(1024, 1024, &buffer_content[..])
         .context("could not create image")?;
     image.save(target_path)?;
     // XXX: macOS specific
@@ -350,9 +367,15 @@ mod s6_fragment_shader {
 }
 pub fn s6_graphics_pipeline(ctx: vk_util::VulkanoContext) -> Result<()> {
     // create vertex buffer
-    let vertex1 = MyVertex { position: [-0.5, -0.5] };
-    let vertex2 = MyVertex { position: [ 0.0,  0.5] };
-    let vertex3 = MyVertex { position: [ 0.5, -0.25] };
+    let vertex1 = MyVertex {
+        position: [-0.5, -0.5],
+    };
+    let vertex2 = MyVertex {
+        position: [0.0, 0.5],
+    };
+    let vertex3 = MyVertex {
+        position: [0.5, -0.25],
+    };
     let vertex_buffer = Buffer::from_iter(
         ctx.memory_allocator(),
         BufferCreateInfo {
@@ -432,11 +455,14 @@ pub fn s6_graphics_pipeline(ctx: vk_util::VulkanoContext) -> Result<()> {
 
     // create pipeline
     let pipeline = {
-        let vs = vs.entry_point("main").context("vertex shader: entry point missing")?;
-        let fs = fs.entry_point("main").context("fragment shader: entry point missing")?;
+        let vs = vs
+            .entry_point("main")
+            .context("vertex shader: entry point missing")?;
+        let fs = fs
+            .entry_point("main")
+            .context("fragment shader: entry point missing")?;
 
-        let vertex_input_state = MyVertex::per_vertex()
-            .definition(&vs.info().input_interface)?;
+        let vertex_input_state = MyVertex::per_vertex().definition(&vs.info().input_interface)?;
 
         let stages = [
             PipelineShaderStageCreateInfo::new(vs),
@@ -481,7 +507,8 @@ pub fn s6_graphics_pipeline(ctx: vk_util::VulkanoContext) -> Result<()> {
         ctx.queue().queue_family_index(),
         CommandBufferUsage::OneTimeSubmit,
     )?;
-    builder.begin_render_pass(
+    builder
+        .begin_render_pass(
             RenderPassBeginInfo {
                 clear_values: vec![Some([0.0, 0.0, 1.0, 1.0].into())],
                 ..RenderPassBeginInfo::framebuffer(framebuffer.clone())
@@ -516,15 +543,20 @@ pub fn s6_graphics_pipeline(ctx: vk_util::VulkanoContext) -> Result<()> {
     Ok(())
 }
 
-fn s7_create_pipeline(ctx: &vk_util::VulkanoContext,
-                      vs: Arc<ShaderModule>,
-                      fs: Arc<ShaderModule>,
-                      viewport: Viewport) -> Result<Arc<GraphicsPipeline>> {
-    let vs = vs.entry_point("main").context("vertex shader: entry point missing")?;
-    let fs = fs.entry_point("main").context("fragment shader: entry point missing")?;
+fn s7_create_pipeline(
+    ctx: &vk_util::VulkanoContext,
+    vs: Arc<ShaderModule>,
+    fs: Arc<ShaderModule>,
+    viewport: Viewport,
+) -> Result<Arc<GraphicsPipeline>> {
+    let vs = vs
+        .entry_point("main")
+        .context("vertex shader: entry point missing")?;
+    let fs = fs
+        .entry_point("main")
+        .context("fragment shader: entry point missing")?;
 
-    let vertex_input_state = MyVertex::per_vertex()
-        .definition(&vs.info().input_interface)?;
+    let vertex_input_state = MyVertex::per_vertex().definition(&vs.info().input_interface)?;
     let stages = [
         PipelineShaderStageCreateInfo::new(vs),
         PipelineShaderStageCreateInfo::new(fs),
@@ -561,11 +593,13 @@ fn s7_create_pipeline(ctx: &vk_util::VulkanoContext,
     )?)
 }
 
-fn s7_create_command_buffers(ctx: &vk_util::VulkanoContext,
-                             pipeline: Arc<GraphicsPipeline>,
-                             vertex_buffer: &Subbuffer<[MyVertex]>)
-                             -> Result<Vec<Arc<PrimaryAutoCommandBuffer>>> {
-    Ok(ctx.framebuffers()
+fn s7_create_command_buffers(
+    ctx: &vk_util::VulkanoContext,
+    pipeline: Arc<GraphicsPipeline>,
+    vertex_buffer: &Subbuffer<[MyVertex]>,
+) -> Result<Vec<Arc<PrimaryAutoCommandBuffer>>> {
+    Ok(ctx
+        .framebuffers()
         .iter()
         .map(|framebuffer| {
             let mut builder = AutoCommandBufferBuilder::primary(
@@ -574,7 +608,8 @@ fn s7_create_command_buffers(ctx: &vk_util::VulkanoContext,
                 CommandBufferUsage::MultipleSubmit,
             )?;
 
-            builder.begin_render_pass(
+            builder
+                .begin_render_pass(
                     RenderPassBeginInfo {
                         clear_values: vec![Some([0.1, 0.1, 0.1, 1.0].into())],
                         ..RenderPassBeginInfo::framebuffer(framebuffer.clone())
@@ -582,13 +617,17 @@ fn s7_create_command_buffers(ctx: &vk_util::VulkanoContext,
                     SubpassBeginInfo {
                         contents: SubpassContents::Inline,
                         ..Default::default()
-                    })?
+                    },
+                )?
                 .bind_pipeline_graphics(pipeline.clone())?
                 .bind_vertex_buffers(0, vertex_buffer.clone())?
                 .draw(vertex_buffer.len() as u32, 1, 0, 0)?
                 .end_render_pass(SubpassEndInfo::default())?;
             builder.build()
-        }).try_collect()?)
+        })
+        .filter(|e| e.is_ok())
+        .map(Result::unwrap)
+        .collect())
 }
 
 struct S7Handler {
@@ -600,25 +639,46 @@ struct S7Handler {
 }
 
 impl S7Handler {
-    fn new(vs: Arc<ShaderModule>,
-           fs: Arc<ShaderModule>,
-           vertex_buffer: Subbuffer<[MyVertex]>,
-           viewport: Viewport,
-           command_buffers: Vec<Arc<PrimaryAutoCommandBuffer>>) -> Self {
-        Self { vs, fs, vertex_buffer, viewport, command_buffers }
+    fn new(
+        vs: Arc<ShaderModule>,
+        fs: Arc<ShaderModule>,
+        vertex_buffer: Subbuffer<[MyVertex]>,
+        viewport: Viewport,
+        command_buffers: Vec<Arc<PrimaryAutoCommandBuffer>>,
+    ) -> Self {
+        Self {
+            vs,
+            fs,
+            vertex_buffer,
+            viewport,
+            command_buffers,
+        }
     }
 }
 
-pub fn s7_windowing(window_ctx: vk_util::WindowContext, ctx: vk_util::VulkanoContext) -> Result<()> {
-    let vertex1 = MyVertex { position: [-0.5, -0.5] };
-    let vertex2 = MyVertex { position: [ 0.0,  0.5] };
-    let vertex3 = MyVertex { position: [ 0.5, -0.25] };
+pub fn s7_windowing(
+    window_ctx: vk_util::WindowContext,
+    ctx: vk_util::VulkanoContext,
+) -> Result<()> {
+    let vertex1 = MyVertex {
+        position: [-0.5, -0.5],
+    };
+    let vertex2 = MyVertex {
+        position: [0.0, 0.5],
+    };
+    let vertex3 = MyVertex {
+        position: [0.5, -0.25],
+    };
     let vertex_buffer = Buffer::from_iter(
         ctx.memory_allocator(),
-        BufferCreateInfo { usage: BufferUsage::VERTEX_BUFFER, ..Default::default() },
+        BufferCreateInfo {
+            usage: BufferUsage::VERTEX_BUFFER,
+            ..Default::default()
+        },
         AllocationCreateInfo {
             memory_type_filter: MemoryTypeFilter::PREFER_DEVICE
-                | MemoryTypeFilter::HOST_SEQUENTIAL_WRITE, ..Default::default()
+                | MemoryTypeFilter::HOST_SEQUENTIAL_WRITE,
+            ..Default::default()
         },
         vec![vertex1, vertex2, vertex3],
     )?;
@@ -635,11 +695,14 @@ pub fn s7_windowing(window_ctx: vk_util::WindowContext, ctx: vk_util::VulkanoCon
     Ok(())
 }
 
-impl vk_util::RenderEventHandler for S7Handler {
+impl vk_util::RenderEventHandler<PrimaryAutoCommandBuffer> for S7Handler {
     fn on_resize(&mut self, ctx: &VulkanoContext, window: Arc<Window>) -> Result<()> {
         self.viewport.extent = window.inner_size().into();
-        self.command_buffers = s7_create_pipeline(ctx, self.vs.clone(), self.fs.clone(), self.viewport.clone())
-            .and_then(|pipeline| s7_create_command_buffers(ctx, pipeline, &self.vertex_buffer))?;
+        self.command_buffers =
+            s7_create_pipeline(ctx, self.vs.clone(), self.fs.clone(), self.viewport.clone())
+                .and_then(|pipeline| {
+                    s7_create_command_buffers(ctx, pipeline, &self.vertex_buffer)
+                })?;
         Ok(())
     }
 
